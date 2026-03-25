@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주식 모니터링 대시보드</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    :root{--bg:#0f172a;--card:#1e293b;--border:#334155;--text:#e2e8f0;--sub:#64748b;--accent:#38bdf8;--up:#ef4444;--dn:#3b82f6;--font:'Pretendard',-apple-system,sans-serif;
+      --c1:#5b9cf6;--c2:#f97316;--c3:#a78bfa;--c4:#34d399}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{overflow-x:hidden}
+    body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5}
+
+    .hdr{background:var(--card);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+    .hdr h1{font-size:18px;font-weight:800;color:var(--accent)}
+    .hdr span{font-size:11px;color:var(--sub)}
+
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+
+    /* Cards */
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+    .cd{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+    .cd__l{font-size:11px;color:var(--sub);margin-bottom:4px}
+    .cd__v{font-size:20px;font-weight:800}
+    .cd__c{font-size:11px;margin-top:2px}
+    .up{color:var(--up)}.dn{color:var(--dn)}.fl{color:var(--sub)}
+
+    /* Chart Section */
+    .sec{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+    .sec__hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .sec__t{font-size:15px;font-weight:700}
+    .sec__sub{font-size:11px;color:var(--sub)}
+    .tabs{display:flex;gap:4px}
+    .tab{background:var(--bg);border:1px solid var(--border);color:var(--sub);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-family:var(--font);transition:.2s}
+    .tab:hover,.tab.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+    .chart-wrap{position:relative;height:300px}
+    .chart-wrap canvas{width:100%!important;height:100%!important}
+    .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:13px}
+
+    /* Grid 2col */
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+
+    /* Stock Table */
+    .tbl-wrap{max-height:340px;overflow-y:auto}
+    .tbl{width:100%;border-collapse:collapse;font-size:12px}
+    .tbl th{padding:8px 10px;text-align:left;color:var(--sub);font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--card);cursor:pointer}
+    .tbl th:hover{color:var(--accent)}
+    .tbl td{padding:6px 10px;border-bottom:1px solid rgba(51,65,85,.4)}
+    .tbl tr:hover{background:rgba(56,189,248,.05)}
+    .tbl .nm{font-weight:600;cursor:pointer}.tbl .nm:hover{color:var(--accent)}
+    .tbl .r{text-align:right}
+
+    /* Heatmap */
+    .hmap{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+    .hm{padding:10px 6px;border-radius:8px;text-align:center;cursor:pointer;transition:.2s}
+    .hm:hover{opacity:.8}
+    .hm__n{font-size:11px;font-weight:600;margin-bottom:2px}
+    .hm__v{font-size:13px;font-weight:800}
+    .hmu1{background:rgba(239,68,68,.2);color:var(--up)}.hmu2{background:rgba(239,68,68,.35);color:var(--up)}.hmu3{background:rgba(239,68,68,.5);color:#fff}
+    .hmd1{background:rgba(59,130,246,.2);color:var(--dn)}.hmd2{background:rgba(59,130,246,.35);color:var(--dn)}.hmd3{background:rgba(59,130,246,.5);color:#fff}
+    .hmf{background:rgba(100,116,139,.15);color:var(--sub)}
+
+    /* News */
+    .news{max-height:340px;overflow-y:auto}
+    .ni{padding:10px 0;border-bottom:1px solid rgba(51,65,85,.4)}
+    .ni__t{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:3px}
+    .ni__m{font-size:10px;color:var(--sub)}
+
+    .ft{text-align:center;padding:20px;font-size:10px;color:var(--sub);border-top:1px solid var(--border);margin-top:16px}
+
+    @media(max-width:768px){.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.chart-wrap{height:220px}.hmap{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:480px){.cards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header class="hdr"><h1>📊 StockDash</h1><span id="clock"></span></header>
+
+<div class="wrap">
+  <!-- Summary Cards -->
+  <div class="cards" id="indexCards">
+    <div class="cd"><div class="cd__l">코스피</div><div class="cd__v" id="v_kospi">-</div><div class="cd__c" id="c_kospi">로딩중...</div></div>
+    <div class="cd"><div class="cd__l">코스닥</div><div class="cd__v" id="v_kosdaq">-</div><div class="cd__c" id="c_kosdaq">로딩중...</div></div>
+    <div class="cd"><div class="cd__l">원/달러</div><div class="cd__v" id="v_usdkrw">-</div><div class="cd__c" id="c_usdkrw">로딩중...</div></div>
+    <div class="cd"><div class="cd__l">비트코인</div><div class="cd__v" id="v_btc">-</div><div class="cd__c" id="c_btc">로딩중...</div></div>
+  </div>
+
+  <!-- Main Chart -->
+  <div class="sec">
+    <div class="sec__hd">
+      <div><span class="sec__t" id="mainChartTitle">삼성전자</span> <span class="sec__sub" id="mainChartSub"></span></div>
+      <div class="tabs" id="stockTabs"></div>
+    </div>
+    <div class="chart-wrap"><canvas id="mainChart"></canvas><div class="loading" id="mainLoading">차트 로딩중...</div></div>
+  </div>
+
+  <!-- 2 Column -->
+  <div class="grid2">
+    <!-- Heatmap -->
+    <div class="sec">
+      <div class="sec__hd"><span class="sec__t">등락률 히트맵</span><span class="sec__sub">실시간</span></div>
+      <div class="hmap" id="heatmap"></div>
+    </div>
+    <!-- Stock Table -->
+    <div class="sec">
+      <div class="sec__hd"><span class="sec__t">종목 목록</span><input style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:11px;width:120px;font-family:var(--font)" id="search" placeholder="검색..." oninput="renderTable()"></div>
+      <div class="tbl-wrap">
+        <table class="tbl"><thead><tr><th>종목</th><th class="r">현재가</th><th class="r">등락률</th><th class="r">거래량</th></tr></thead><tbody id="tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- News -->
+  <div class="sec">
+    <div class="sec__hd"><span class="sec__t">주요 뉴스</span></div>
+    <div class="news" id="news"></div>
+  </div>
+</div>
+
+<div class="ft">본 대시보드는 포트폴리오 목적으로 구현되었습니다. 투자 판단에 사용하지 마세요. | 데이터: Yahoo Finance</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+Chart.defaults.color='#64748b';
+Chart.defaults.borderColor='#334155';
+
+/* === CORS Proxy Fetch === */
+function proxyFetch(url){
+  var proxies=[
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
+    'https://corsproxy.io/?'+encodeURIComponent(url)
+  ];
+  function tryNext(i){
+    if(i>=proxies.length)return Promise.reject('all proxies failed');
+    return fetch(proxies[i]).then(function(r){if(!r.ok)throw'err';return r.json()}).catch(function(){return tryNext(i+1)});
+  }
+  return tryNext(0);
+}
+
+/* === Yahoo Finance Data === */
+function getYahoo(symbol,range,interval){
+  range=range||'6mo';interval=interval||'1d';
+  var cacheKey='yf_'+symbol+'_'+range;
+  var cached=sessionStorage.getItem(cacheKey);
+  if(cached){var cd=JSON.parse(cached);if(Date.now()-cd.ts<900000)return Promise.resolve(cd.data)}
+  var url='https://query1.finance.yahoo.com/v8/finance/chart/'+symbol+'?range='+range+'&interval='+interval+'&includePrePost=false';
+  return proxyFetch(url).then(function(json){
+    var r=json.chart.result[0];
+    var ts=r.timestamp||[];var q=r.indicators.quote[0];
+    var meta=r.meta;
+    var out={dates:[],opens:[],highs:[],lows:[],closes:[],volumes:[],price:meta.regularMarketPrice,prevClose:meta.previousClose||meta.chartPreviousClose};
+    for(var i=0;i<ts.length;i++){
+      if(!q.close[i])continue;
+      out.dates.push(new Date(ts[i]*1000));
+      out.opens.push(q.open[i]);out.highs.push(q.high[i]);out.lows.push(q.low[i]);
+      out.closes.push(q.close[i]);out.volumes.push(q.volume[i]||0);
+    }
+    sessionStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),data:out}));
+    return out;
+  });
+}
+
+/* === Clock === */
+setInterval(function(){var d=new Date();document.getElementById('clock').textContent=d.toLocaleDateString('ko')+' '+d.toLocaleTimeString('ko')},1000);
+
+/* === Index Cards === */
+var INDEX_LIST=[
+  {id:'kospi',sym:'^KS11',name:'코스피'},
+  {id:'kosdaq',sym:'^KQ11',name:'코스닥'},
+  {id:'usdkrw',sym:'KRW=X',name:'원/달러'},
+  {id:'btc',sym:'BTC-USD',name:'비트코인'}
+];
+INDEX_LIST.forEach(function(idx){
+  getYahoo(idx.sym,'5d','1d').then(function(d){
+    var price=d.price||d.closes[d.closes.length-1];
+    var prev=d.prevClose||d.closes[d.closes.length-2]||price;
+    var chg=price-prev,pct=(chg/prev*100);
+    var cls=chg>=0?'up':'dn',sign=chg>=0?'▲ +':'▼ ';
+    document.getElementById('v_'+idx.id).textContent=price>=10000?Math.round(price).toLocaleString():price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+    document.getElementById('c_'+idx.id).className='cd__c '+cls;
+    document.getElementById('c_'+idx.id).textContent=sign+Math.abs(chg).toFixed(2)+' ('+Math.abs(pct).toFixed(2)+'%)';
+  }).catch(function(){document.getElementById('c_'+idx.id).textContent='데이터 없음'});
+});
+
+/* === Stock List === */
+var STOCKS=[
+  {sym:'005930.KS',name:'삼성전자',theme:'반도체'},
+  {sym:'000660.KS',name:'SK하이닉스',theme:'반도체'},
+  {sym:'373220.KS',name:'LG에너지솔루션',theme:'2차전지'},
+  {sym:'006400.KS',name:'삼성SDI',theme:'2차전지'},
+  {sym:'035420.KS',name:'NAVER',theme:'AI/IT'},
+  {sym:'035720.KS',name:'카카오',theme:'AI/IT'},
+  {sym:'005380.KS',name:'현대차',theme:'자동차'},
+  {sym:'000270.KS',name:'기아',theme:'자동차'},
+  {sym:'068270.KS',name:'셀트리온',theme:'바이오'},
+  {sym:'051910.KS',name:'LG화학',theme:'2차전지'},
+  {sym:'207940.KS',name:'삼성바이오',theme:'바이오'},
+  {sym:'017670.KS',name:'SK텔레콤',theme:'통신'}
+];
+var stockData={};
+
+/* Load all stock data */
+function loadStocks(){
+  STOCKS.forEach(function(s){
+    getYahoo(s.sym,'5d','1d').then(function(d){
+      var price=d.price||d.closes[d.closes.length-1];
+      var prev=d.prevClose||d.closes[d.closes.length-2]||price;
+      var chg=(price-prev)/prev*100;
+      var vol=d.volumes[d.volumes.length-1]||0;
+      stockData[s.sym]={price:price,change:chg,volume:vol};
+      renderTable();renderHeatmap();
+    }).catch(function(){
+      stockData[s.sym]={price:0,change:0,volume:0};
+    });
+  });
+}
+loadStocks();
+
+/* === Stock Tabs === */
+var tabsEl=document.getElementById('stockTabs');
+STOCKS.slice(0,5).forEach(function(s,i){
+  var btn=document.createElement('button');
+  btn.className='tab'+(i===0?' on':'');
+  btn.textContent=s.name;
+  btn.onclick=function(){document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on')});btn.classList.add('on');loadMainChart(s.sym,s.name)};
+  tabsEl.appendChild(btn);
+});
+
+/* === Main Chart === */
+var mainChartInstance=null;
+function loadMainChart(sym,name){
+  document.getElementById('mainChartTitle').textContent=name;
+  document.getElementById('mainLoading').style.display='flex';
+  getYahoo(sym,'6mo','1d').then(function(d){
+    document.getElementById('mainLoading').style.display='none';
+    var labels=d.dates.map(function(dt){return dt.toISOString().split('T')[0]});
+    document.getElementById('mainChartSub').textContent=d.closes.length+'일 데이터';
+    if(mainChartInstance)mainChartInstance.destroy();
+    mainChartInstance=new Chart(document.getElementById('mainChart'),{
+      type:'line',
+      data:{
+        labels:labels,
+        datasets:[{
+          label:name,
+          data:d.closes,
+          borderColor:'#38bdf8',
+          backgroundColor:'rgba(56,189,248,0.1)',
+          fill:true,
+          tension:0.3,
+          pointRadius:0,
+          borderWidth:2
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:function(ctx){return ctx.dataset.label+': '+Math.round(ctx.parsed.y).toLocaleString()+'원'}}}},
+        scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8,font:{size:10}}},y:{position:'right',grid:{color:'rgba(51,65,85,0.5)'},ticks:{callback:function(v){return v>=10000?(v/10000).toFixed(1)+'만':v.toLocaleString()},font:{size:10}}}}
+      }
+    });
+  }).catch(function(){document.getElementById('mainLoading').textContent='데이터 로딩 실패'});
+}
+loadMainChart('005930.KS','삼성전자');
+
+/* === Table === */
+function renderTable(){
+  var q=(document.getElementById('search').value||'').toLowerCase();
+  var html='';
+  STOCKS.forEach(function(s){
+    if(q&&s.name.toLowerCase().indexOf(q)<0)return;
+    var d=stockData[s.sym];if(!d)return;
+    var cls=d.change>=0?'up':'dn',sign=d.change>=0?'+':'';
+    var priceStr=d.price>=10000?Math.round(d.price).toLocaleString():d.price.toFixed(0);
+    var volStr=d.volume>=100000000?(d.volume/100000000).toFixed(1)+'억':d.volume>=10000?(d.volume/10000).toFixed(0)+'만':d.volume.toLocaleString();
+    html+='<tr><td class="nm" onclick="loadMainChart(\''+s.sym+'\',\''+s.name+'\')">'+s.name+'</td><td class="r">'+priceStr+'</td><td class="r '+cls+'">'+sign+d.change.toFixed(2)+'%</td><td class="r" style="color:var(--sub)">'+volStr+'</td></tr>';
+  });
+  document.getElementById('tbody').innerHTML=html||'<tr><td colspan="4" style="text-align:center;color:var(--sub)">로딩중...</td></tr>';
+}
+
+/* === Heatmap === */
+function renderHeatmap(){
+  var html='';
+  STOCKS.forEach(function(s){
+    var d=stockData[s.sym];if(!d)return;
+    var c=d.change,cls;
+    if(c>=2)cls='hmu3';else if(c>=1)cls='hmu2';else if(c>0)cls='hmu1';
+    else if(c<=-2)cls='hmd3';else if(c<=-1)cls='hmd2';else if(c<0)cls='hmd1';else cls='hmf';
+    var sign=c>=0?'+':'';
+    html+='<div class="hm '+cls+'" onclick="loadMainChart(\''+s.sym+'\',\''+s.name+'\')"><div class="hm__n">'+s.name+'</div><div class="hm__v">'+sign+c.toFixed(2)+'%</div></div>';
+  });
+  document.getElementById('heatmap').innerHTML=html||'<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:20px">로딩중...</div>';
+}
+
+/* === News (Mock - 실제 서비스 시 API 연동) === */
+var NEWS=[
+  {t:'삼성전자, AI 반도체 수요 급증에 실적 기대감 상승',s:'한국경제',m:'10분 전'},
+  {t:'SK하이닉스 HBM3E 양산 본격화...2분기 호실적 전망',s:'매일경제',m:'25분 전'},
+  {t:'코스피 외국인 순매수 지속...2,700 돌파 시도',s:'조선비즈',m:'42분 전'},
+  {t:'LG에너지솔루션 북미 배터리 공장 증설 발표',s:'머니투데이',m:'1시간 전'},
+  {t:'NAVER 하이퍼클로바X 기업용 서비스 정식 출시',s:'ZDNet',m:'1시간 전'},
+  {t:'현대차·기아 글로벌 판매 호조...주가 동반 상승',s:'뉴시스',m:'2시간 전'},
+];
+document.getElementById('news').innerHTML=NEWS.map(function(n){return'<div class="ni"><div class="ni__t">'+n.t+'</div><div class="ni__m">'+n.s+' · '+n.m+'</div></div>'}).join('');
+</script>
+</body>
+</html>
